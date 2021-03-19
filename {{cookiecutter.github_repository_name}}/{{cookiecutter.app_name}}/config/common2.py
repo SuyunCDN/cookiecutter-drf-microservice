@@ -38,14 +38,21 @@ List of settings that the project as to have to be ready for production:
 
 import os
 import sys
-from distutils.util import strtobool
 
-gettext = lambda s: s
-DATA_DIR = os.path.dirname(os.path.dirname(__file__))
-
-APP_NAME = '{{cookiecutter.app_name|upper}}'
-
-
+# import boto3 as boto3
+#
+# # for the secrets
+# aws_client = boto3.client('ssm', region_name='eu-west-1')
+# response = aws_client.get_parameters(
+#     Names=[
+#         'db_password',
+#         'email_password',
+#         'django_secret_key',
+#         'stats_api_key',
+#     ],
+#     WithDecryption=True
+# )
+# secrets = {p.get('Name'): p.get('Value') for p in response.get('Parameters')}
 secrets = {}
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -65,17 +72,12 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 TESTING = 'test' or '-k e2e' in sys.argv
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = strtobool(os.getenv('ENABLE_DEBUG', 'false'))
+DEBUG = bool(int(os.getenv('ENABLE_DEBUG', 0)))
 
 # Allowed hosts
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
 if DEBUG:
     ALLOWED_HOSTS.extend(['127.0.0.1', 'localhost', '0.0.0.0'])
-
-INTERNAL_IPS = [
-    '127.0.0.1',
-]
-
 
 # Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -86,17 +88,16 @@ ADMINS = (
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': int(os.getenv('DJANGO_PAGINATION_LIMIT', 20)),
+    'PAGE_SIZE': int(os.getenv('DJANGO_PAGINATION_LIMIT', 10)),
     'DATETIME_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
 
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-#         'rest_framework.authentication.BasicAuthentication',  # require for /docs
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.BasicAuthentication',  # require for /docs
         'rest_framework.authentication.TokenAuthentication',
-    ],
-
-    # 'DEFAULT_PERMISSION_CLASSES': (
-    #     'rest_framework.permissions.IsAuthenticated',
-    # ),
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
@@ -105,11 +106,8 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.FormParser',
         'rest_framework.parsers.MultiPartParser'
-    ),
-    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema'
+    )
 }
-
-
 
 # Application definition
 INSTALLED_APPS = [
@@ -140,14 +138,13 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = '%s.urls' % APP_NAME.lower()
+ROOT_URLCONF = '{{cookiecutter.app_name}}.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [],
         'APP_DIRS': True,
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -159,38 +156,77 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = '%s.wsgi.application' % APP_NAME.lower()
+WSGI_APPLICATION = '{{cookiecutter.app_name}}.wsgi.application'
 
+
+
+if os.getenv('DOCKER_POSTGRESQL_DB_HOSTCONTAINER'):
+    DB_HOST = os.getenv('POSTGRESQL_DB_HOST', '127.0.0.1')
+elif os.getenv('DOCKER_CONTAINER'):
+    DB_HOST = 'db'
+else:
+    DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
 DB_ENGINE = 'django.db.backends.postgresql'
-DB_HOST = os.getenv('POSTGRESQL_DB_HOST', '127.0.0.1')
-DB_PORT = os.getenv('POSTGRESQL_DB_PORT', '5432')
 DB_USER = os.getenv('POSTGRESQL_DB_USER', 'user')
 DB_PASS = os.getenv('POSTGRESQL_DB_PASS', 'passwd')
-DB_NAME = os.getenv('%s_DB_NAME' % APP_NAME, '%s%s' % (os.getenv('PREFIX', 'caesar_'),  APP_NAME.lower()) )
+DB_NAME = os.getenv('POSTGRESQL_DB_NAME', 'project_db')
+DB_PORT = os.getenv('POSTGRESQL_DB_PORT', '5432')
 
-COMMON_DB_NAME = os.getenv('COMMON_DB_NAME', DB_NAME )
 
 DATABASES = {
     'default': {
         'ENGINE': DB_ENGINE,
         'HOST': DB_HOST,
         'PORT': DB_PORT,
-        'USER': DB_USER,
-        'PASSWORD': DB_PASS,
         'NAME': DB_NAME,
-    },
-    'common': {
-        'NAME': COMMON_DB_NAME,
-        'ENGINE': DB_ENGINE,
-        'HOST': DB_HOST,
-        'PORT': DB_PORT,
         'USER': DB_USER,
         'PASSWORD': DB_PASS,
     }
 }
 
-DATABASE_ROUTERS = ["common.dbrouter.AuthRouter", ]
-
+if TESTING:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'tests.sqlite3'),
+        }
+    }
+else:
+    if DEBUG:
+        if os.getenv('DOCKER_CONTAINER'):
+            DB_HOST = 'db'
+        else:
+            DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
+        DB_USER = os.getenv('DB_USER', 'user')
+        DB_PASS = os.getenv('DB_PASS', 'passwd')
+        DB_NAME = os.getenv('DB_NAME', 'project_db')
+        DB_PORT = os.getenv('DB_PORT', '5432')
+        # todo: change to postgres later, and refactor this part
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+            },
+        }
+    else:
+        if os.getenv('DOCKER_CONTAINER'):
+            DB_HOST = 'db'
+        else:
+            DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
+        DB_USER = os.getenv('DB_USER', 'user')
+        DB_PASS = secrets.get('db_password', 'passwd')
+        DB_NAME = os.getenv('DB_NAME', 'project_db')
+        DB_PORT = os.getenv('DB_PORT', '5432')
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql_psycopg2',
+                'HOST': DB_HOST,
+                'PORT': DB_PORT,
+                'NAME': DB_NAME,
+                'USER': DB_USER,
+                'PASSWORD': DB_PASS,
+            }
+        }
 
 # Password validation
 # https://docs.djangoproject.com/en/2.1/ref/settings/#auth-password-validators
@@ -212,29 +248,17 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 # https://docs.djangoproject.com/en/2.1/topics/i18n/
-LANGUAGE_CODE = os.environ.get('LANGUAGE_CODE', default='zh-hans')
-
-LANGUAGES = (
-    ## Customize this
-    ('en', gettext('English')),
-    ('zh-hans', gettext('Chinese')),
-)
-
-LOCALE_PATHS = (
-    os.path.join(BASE_DIR, 'locale'),
-)
+LANGUAGE_CODE = 'en-us'
 
 # list: http://pytz.sourceforge.net/#what-is-utc
-TIME_ZONE = os.environ.get('TIME_ZONE', default='Asia/Singapore')
+TIME_ZONE = os.environ.get('TIME_ZONE', default='UTC')
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/2.1/howto/static-files/
-STATIC_ROOT = os.environ.get('STATIC_ROOT', default=os.path.join(DATA_DIR, 'static'))
-
+STATIC_ROOT = os.path.join(os.path.dirname(BASE_DIR), 'static')
 STATIC_URL = '/static/'
 
 # Some media files if you need it else remove it
@@ -266,7 +290,7 @@ LOGGING = {
     'formatters': {
         'django.server': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[%(asctime)s] %(message)s',
+            'format': '[%(server_time)s] %(message)s',
         },
         'verbose': {
             'format':
@@ -281,9 +305,6 @@ LOGGING = {
         'require_debug_true': {
             '()': 'django.utils.log.RequireDebugTrue',
         },
-        'require_debug_false': {
-            '()': 'django.utils.log.RequireDebugFalse',
-        },
     },
     'handlers': {
         'django.server': {
@@ -296,12 +317,10 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'simple'
         },
-        'slack_admins': {
+        'mail_admins': {
             'level': 'ERROR',
-            'filters': ['require_debug_false'],
-            'class': 'django_slack.log.SlackExceptionHandler',
-            'formatter': 'simple'
-        },
+            'class': 'django.utils.log.AdminEmailHandler'
+        }
     },
     'loggers': {
         'django': {
@@ -314,7 +333,7 @@ LOGGING = {
             'propagate': False,
         },
         'django.request': {
-            'handlers': ['slack_admins', 'console'],
+            'handlers': ['mail_admins', 'console'],
             'level': 'ERROR',
             'propagate': False,
         },
@@ -325,83 +344,36 @@ LOGGING = {
     }
 }
 
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-]
-
 if DEBUG:
-    from corsheaders.defaults import default_headers
-    INSTALLED_APPS += ['debug_toolbar', 'corsheaders',]
-
-    MIDDLEWARE = [
-        'corsheaders.middleware.CorsMiddleware',
+    INSTALLED_APPS += ['debug_toolbar',]
+    MIDDLEWARE += [
         'debug_toolbar.middleware.DebugToolbarMiddleware',
-    ] + MIDDLEWARE
-    
-    CORS_ALLOWED_ORIGIN_REGEXES = [
-        "https://console.dev.suyuncdn.com",
-        "https://console.dev.suyuncdn.com:7080"
     ]
-
-    CORS_ALLOW_HEADERS = default_headers + ('cache-control', 'realm')
-    
 
 # KeyCloak
-USE_KEYCLOAK = strtobool(os.getenv('USE_KEYCLOAK', 'false'))
+USE_KEYCLOAK = bool(int(os.getenv('USE_KEYCLOAK', 0)))
 
 if USE_KEYCLOAK is not None:
-    INSTALLED_APPS += [
+    INSTALLED_APPS += [ 
         'django_keycloak.apps.KeycloakAppConfig',
-        'caesar_user',
     ]
+    #     
+#     'django_keycloak.middleware.RemoteUserAuthenticationMiddleware',
 
-    MIDDLEWARE += [
-        'django_keycloak.middleware.BaseKeycloakMiddleware',
-        'django_keycloak.middleware.KeycloakStatelessBearerAuthenticationMiddleware',
+    MIDDLEWARE += [ 
+        'django_keycloak.middleware.BaseKeycloakMiddleware', 
     ]
     PASSWORD_HASHERS = [
         'django_keycloak.hashers.PBKDF2SHA512PasswordHasher',
     ]
     AUTHENTICATION_BACKENDS = [
-        'django.contrib.auth.backends.ModelBackend',
         'django_keycloak.auth.backends.KeycloakAuthorizationCodeBackend',
-        'django_keycloak.auth.backends.KeycloakIDTokenAuthorizationBackend',
+        'django.contrib.auth.backends.ModelBackend', 
     ]
-
-    REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'] += ['django_keycloak.auth.authentication.KeycloakIDAuthentication', ]
-
-
     KEYCLOAK_OIDC_PROFILE_MODEL = 'django_keycloak.OpenIdConnectProfile'
     KEYCLOAK_BEARER_AUTHENTICATION_EXEMPT_PATHS = [
         r'^admin/',
-        r'^docs/',
     ]
 #     KEYCLOAK_SKIP_SSL_VERIFY = True
-
+    
     LOGIN_URL = 'keycloak_login'
-
-
-INSTALLED_APPS += ["django_slack",]
-SLACK_TOKEN=os.environ.get("SLACK_TOKEN", None)
-SLACK_CHANNEL=os.environ.get("SLACK_CHANNEL", '#test')
-
-
-INSTALLED_APPS += [
-    'cdndomain.domain',
-    'cdndomain.traffic',
-    'cdndomain.rest',
-    'cdndomain.websocket',
-    'bootstrap4',
-    'ajax_select',
-]
-
-REST_FRAMEWORK['DEFAULT_PAGINATION_CLASS'] = 'cdndomain.domain.pagination.StandardResultsSetPagination'
-
-
-TELEGRAMBOT_TOKEN=os.environ.get("TELEGRAMBOT_TOKEN", '100000006:A1231231312_96x12341234IV-071241234')
-TELEGRAMBOT_CHAT_ID=os.environ.get("TELEGRAMBOT_CHAT_ID", '-1000011')
-
-TELEGRAMBOT = {
-    "TOKEN": TELEGRAMBOT_TOKEN,
-    "DEFAULT_CHAT_ID": TELEGRAMBOT_CHAT_ID
-}

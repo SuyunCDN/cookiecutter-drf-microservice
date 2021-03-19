@@ -43,6 +43,11 @@ urlpatterns = [
     # Some media files if you need it else remove it
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
+if settings.USE_KEYCLOAK:
+    urlpatterns += [
+        url(r'^keycloak/', include('django_keycloak.urls')),
+    ]
+
 if settings.DEBUG:
     # To debug the error pages during development
     urlpatterns += [
@@ -54,3 +59,6 @@ if settings.DEBUG:
     # static/media files
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+    import debug_toolbar
+    urlpatterns += [ url(r'^__debug__/', include(debug_toolbar.urls)), ]

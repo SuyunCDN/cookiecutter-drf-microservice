@@ -1,0 +1,36 @@
+[[source]]
+url = "https://pypi.mirrors.ustc.edu.cn/simple/"
+verify_ssl = true
+
+
+
+[packages]
+# base 
+pytz = "~=2021.1"
+utils2devops = ">=0.1.4"
+psycopg2-binary = "~=2.8.6"
+djangorestframework = "~=3.12.2"
+django-filter = "~=2.4.0"
+six = "~=1.15.0"
+django-rest-auth = "~=0.9.5"
+coreapi = "~=2.3.3"
+requests = ">=2.25.1"
+python-dotenv = "~=0.15.0"
+django-slack = "~=5.16.0"
+python-telegram-bot = "~=13.3"
+Django = "~=3.1.7"
+daphne = "~=3.0.1"
+jwt = "~=1.2.0"
+djangorestframework-jwt = "~=1.11.0"
+Twisted = "~=21.2.0"
+cryptography = "~=3.3.2"
+pyasn1 = "~=0.4.8"
+autobahn = "==21.2.1"
+
+[dev-packages]
+jupyterlab = "*"
+pylint = "*"
+django-debug-toolbar = "~=3.2"
+
+[requires]
+python_version = "3"
