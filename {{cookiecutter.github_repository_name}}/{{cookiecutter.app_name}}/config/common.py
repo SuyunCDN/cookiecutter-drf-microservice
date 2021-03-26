@@ -124,8 +124,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'rest_auth',
-
-    '{{cookiecutter.app_name}}.rest',
 ]
 
 MIDDLEWARE = [
@@ -387,15 +385,8 @@ SLACK_CHANNEL=os.environ.get("SLACK_CHANNEL", '#test')
 
 
 INSTALLED_APPS += [
-    'cdndomain.domain',
-    'cdndomain.traffic',
-    'cdndomain.rest',
-    'cdndomain.websocket',
-    'bootstrap4',
-    'ajax_select',
+    '{{cookiecutter.app_name}}.rest',
 ]
-
-REST_FRAMEWORK['DEFAULT_PAGINATION_CLASS'] = 'cdndomain.domain.pagination.StandardResultsSetPagination'
 
 
 TELEGRAMBOT_TOKEN=os.environ.get("TELEGRAMBOT_TOKEN", '100000006:A1231231312_96x12341234IV-071241234')
